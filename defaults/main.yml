@@ -1,0 +1,56 @@
+---
+# defaults file for ca
+
+# A passphrase for the CA key.
+ca_passphrase: 21Uxd7qX08QKFj2JSVwMCLyK8f1hhCRzQwGScQfMvRCTIFrlRI
+
+# The common name for the CA.
+ca_common_name: example.com
+
+# Other details for the CA.
+ca_country_name: AU
+ca_email_address: ca@example.com
+ca_organization_name: N/A
+ca_organizational_unit_name: N/A
+ca_state_or_province_name: NSW
+
+# There are two formats to request a key and certificate:
+# 1. With details: (Includes `name:`)
+# ca_requests:
+#   - name: certificate1.example.com
+#     passphrase: S3creT
+#     cipher: aes256
+
+# 2. Without details: (Does not include `name:`)
+# ca_requests:
+#   - "{{ ansible_fqdn }}"
+
+# You can also mix these formats:
+# ca_requests:
+#   - name: certificate1.example.com
+#     passphrase: S3creT
+#     cipher: aes256
+#   - "{{ ansible_fqdn }}"
+
+# Where to publish the certificates, normally a webserver location.
+# If not specified, certificates will not be published.
+# {{ httpd_data_directory }} is inheritted from the role robertdebock.httpd.
+ca_publication_location: "{{ httpd_data_directory | default('/tmp') }}/pub"
+
+# Where do the certificates need to be stored? By default the distribution
+# preferred locations are used (see `vars/main.yml`, under `_ca_openssl_path`.
+# If you need a CA certificate somewhere else, simple use something like this:
+# ca_openssl_path: /my/preferred/path
+ca_openssl_path: "{{ _ca_openssl_path[ansible_os_family] | default(_ca_openssl_path['default']) }}"
+
+# The names of the generated files are set to a sane default, but if you need
+# to change the for your application, you can overwrite the values. These paths
+# are relative to `ca_openssl_path`.
+ca_private_path: private
+ca_certs_path: certs
+ca_privatekey_path: "{{ ca_private_path }}/ca.pem"
+ca_csr_path: ca.csr
+ca_certificate_path: "{{ ca_certs_path }}/ca.crt"
+ca_root_name: Example_Root_CA
+
+ca_default_p12_passphrase: KmjPLydGmVnrbLvBC1l0LDZU4iMpVlkmdI2kp7Gbrp4I0nJUE8

@@ -1,0 +1,168 @@
+- name: Create OpenSSL directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: root
+    group: root
+    mode: 0775
+  with_items:
+    - /etc/ssl/ca
+    - /etc/ssl/ca/certs
+    - /etc/ssl/ca/private
+    - /etc/ssl/ca/client
+    - /etc/ssl/ca/serial
+    - /etc/ssl/ca/crl
+
+- name: Manage our CA openssl.cnf
+  copy:
+    src: openssl.cnf
+    dest: /etc/ssl/openssl.cnf
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Manage our CA openssl.cnf
+  template:
+    src: "openssl.cnf.j2"
+    dest: "/etc/ssl/openssl.cnf"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Create database index
+  command: touch /etc/ssl/ca/index.txt
+  args:
+    creates: /etc/ssl/ca/index.txt
+
+- name: Create crlnumber file
+  copy:
+    dest: "/etc/ssl/ca/crlnumber"
+    force: no
+    content: |
+      01
+
+- name: Generate CA PK
+  openssl_privatekey:
+    cipher: aes256
+    path: /etc/ssl/ca/private/{{ ca_root_name }}.pem
+    passphrase: "{{ ca_passphrase }}"
+    size: 4096
+
+- name: Create CA CSR
+  openssl_csr:
+    path: "{{ ca_openssl_path }}/{{ ca_csr_path }}"
+    privatekey_path: "{{ ca_openssl_path }}/{{ ca_privatekey_path }}"
+    privatekey_passphrase: "{{ ca_passphrase }}"
+    common_name: "{{ ca_common_name }}"
+    country_name: "{{ ca_country_name | default(omit) }}"
+    email_address: "{{ ca_email_address | default(omit) }}"
+    organization_name: "{{ ca_organization_name | default(omit) }}"
+    organizational_unit_name: "{{ ca_organizational_unit_name | default(omit) }}"
+    state_or_province_name: "{{ ca_state_or_province_name | default(omit) }}"
+    basic_constraints: ['CA:TRUE']
+    extended_key_usage:
+      - serverAuth
+      - clientAuth
+    extended_key_usage_critical: 'yes'
+    key_usage:
+      - cRLSign
+      - keyCertSign
+      - digitalSignature
+      - nonRepudiation
+      - keyEncipherment
+      - dataEncipherment
+      - keyAgreement
+      - keyCertSign
+      - cRLSign
+    create_subject_key_identifier: 'yes'
+
+- name: Create CA certificate
+  openssl_certificate:
+    path: "{{ ca_openssl_path }}/{{ ca_certificate_path }}"
+    privatekey_path: "{{ ca_openssl_path }}/{{ ca_privatekey_path }}"
+    privatekey_passphrase: "{{ ca_passphrase }}"
+    csr_path: "{{ ca_openssl_path }}/{{ ca_csr_path }}"
+    provider: selfsigned
+    extended_key_usage:
+      - serverAuth
+      - clientAuth
+    key_usage:
+      - cRLSign
+      - keyCertSign
+      - digitalSignature
+      - nonRepudiation
+      - keyEncipherment
+      - dataEncipherment
+      - keyAgreement
+      - keyCertSign
+      - cRLSign
+
+- name: Generate CRL file
+  command: "sudo openssl ca -name CA_default -config /etc/ssl/openssl.cnf -gencrl -keyfile /etc/ssl/ca/private/{{ ca_root_name }}.pem -cert /etc/ssl/ca/certs/{{ ca_root_name }}.crt -passin pass:{{ ca_passphrase }} -out /etc/ssl/ca/crl/ca.crl.pem -crldays 365"
+  args: 
+    creates: /etc/ssl/ca/crl/ca.crl.pem
+
+- name: generate requested key
+  openssl_privatekey:
+    path: "{{ ca_openssl_path }}/{{ ca_private_path }}/{{ item.name | default(item) }}.pem"
+    passphrase: "{{ item.passphrase | default(omit) }}"
+    cipher: "{{ item.cipher | default(omit) }}"
+  with_items:
+    - "{{ ca_requests }}"
+  loop_control:
+    label: "{{ item.name | default(item) }}"
+  when:
+    - ca_requests is defined
+
+- name: generate requested certificate signing request
+  openssl_csr:
+    path: "{{ ca_openssl_path }}/ca/{{ item.name | default(item) }}.csr"
+    privatekey_path: "{{ ca_openssl_path }}/{{ ca_private_path }}/{{ item.name | default(item) }}.pem"
+    privatekey_passphrase: "{{ item.passphrase | default(omit) }}"
+    common_name: "{{ item.common_name | default(omit) }}"
+    subject_alt_name: "{{ item.subject_alt_name | default(omit) }}"
+    country_name: "{{ item.country_name | default(omit) }}"
+    email_address: "{{ item.email_address | default(omit) }}"
+    organization_name: "{{ item.organization_name | default(omit) }}"
+    organizational_unit_name: "{{ item.organizational_unit_name | default(omit) }}"
+  with_items:
+    - "{{ ca_requests }}"
+  loop_control:
+    label: "{{ item.name | default(item) }}"
+  when:
+    - ca_requests is defined
+
+- name: generate certificate
+  openssl_certificate:
+    privatekey_path: "{{ ca_openssl_path }}/{{ ca_private_path }}/{{ item.name | default(item) }}.pem"
+    path: "{{ ca_openssl_path }}/{{ ca_certs_path }}/{{ item.name | default(item) }}.crt"
+    csr_path: "{{ ca_openssl_path }}/ca/{{ item.name | default(item) }}.csr"
+    privatekey_passphrase: "{{ item.passphrase | default(omit) }}"
+    provider: ownca
+    ownca_path: "{{ ca_openssl_path }}/ca/certs/{{ ca_root_name }}.crt"
+    ownca_privatekey_path: "{{ ca_openssl_path }}/ca/private/{{ ca_root_name }}.pem"
+    ownca_privatekey_passphrase: "{{ ca_passphrase }}"
+  with_items:
+    - "{{ ca_requests }}"
+  loop_control:
+    label: "{{ item.name | default(item) }}"
+  when:
+    - ca_requests is defined
+
+- name: Generate client p12 files
+  openssl_pkcs12:
+    action: export
+    path: "{{ ca_openssl_path }}/ca/client/{{ item.name }}.p12"
+    friendly_name: "{{ item.name | default(item) }}"
+    privatekey_path: "{{ ca_openssl_path }}/{{ ca_private_path }}/{{ item.name | default(item) }}.pem"
+    certificate_path: "{{ ca_openssl_path }}/{{ ca_certs_path }}/{{ item.name | default(item) }}.crt"
+    other_certificates: "{{ ca_openssl_path }}/{{ ca_certificate_path }}"
+    privatekey_passphrase: "{{ item.passphrase }}"
+    state: present
+    passphrase: "{{ ca_default_p12_passphrase }}"
+  with_items:
+    - "{{ ca_requests }}"
+  loop_control:
+    label: "{{ item.name | default(item) }}"
+  when:
+    - ca_requests is defined

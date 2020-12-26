@@ -1,0 +1,227 @@
+{{ ansible_managed | comment }}
+
+# OpenSSL root CA configuration file.
+
+[ ca ]
+# `man ca`
+default_ca = CA_default
+
+[ CA_default ]
+# Directory and file locations.
+dir               = /etc/ssl/ca
+certs             = $dir/certs
+crl_dir           = $dir/crl
+database          = $dir/index.txt
+#unique_subject = no                    # Set to 'no' to allow creation of
+new_certs_dir     = $dir/certs
+
+certificate       = $dir/certs/{{ ca_root_name }}.crt
+serial = $dir/serial                    # The current serial number
+crlnumber         = $dir/crlnumber
+
+crl               = $dir/crl/ca.crl.pem
+private_key       = $dir/private/{{ ca_root_name }}.pem
+RANDFILE    = $dir/private/.rand        # private random number file
+x509_extensions = usr_cert              # The extentions to add to the cert
+
+name_opt          = ca_default
+cert_opt          = ca_default
+
+default_days      = 365
+default_crl_days  = 365
+default_md        = sha256
+
+preserve          = no
+policy            = policy_match
+
+[req]
+default_bits            = 4096
+distinguished_name = req_distinguished_name
+attributes              = req_attributes
+
+[req_distinguished_name]
+countryName                     = Country Name (2 letter code)
+countryName_default             = {{ ca_country_name }}
+countryName_min                 = 2
+countryName_max                 = 2
+
+stateOrProvinceName             = State or Province Name (full name)
+stateOrProvinceName_default     = Some-State
+
+localityName                    = Locality Name (eg, city)
+
+0.organizationName              = Organization Name (eg, company)
+0.organizationName_default      = Internet Widgits Pty Ltd
+organizationalUnitName          = Organizational Unit Name (eg, section)
+
+commonName                      = Common Name (e.g. server FQDN or YOUR name)
+commonName_max                  = 64
+
+emailAddress                    = Email Address
+emailAddress_max                = 64
+
+[ req_attributes ]
+challengePassword               = A challenge password
+challengePassword_min           = 4
+challengePassword_max           = 20
+
+unstructuredName                = An optional company name
+
+[ v3_req ]
+basicConstraints = critical,CA:false
+keyUsage = nonRepudiation
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+
+[ v3_ca ]
+subjectKeyIdentifier = hash
+extendedKeyUsage = critical,serverAuth, clientAuth
+basicConstraints = CA:true
+keyUsage = cRLSign, keyCertSign, digitalSignature, nonRepudiation,keyEncipherment, dataEncipherment, keyAgreement, keyCertSign, cRLSign
+
+[ usr_cert ]
+
+# These extensions are added when 'ca' signs a request.
+
+# This goes against PKIX guidelines but some CAs do it and some software
+# requires this to avoid interpreting an end user certificate as a CA.
+
+basicConstraints=CA:FALSE
+
+# Here are some examples of the usage of nsCertType. If it is omitted
+# the certificate can be used for anything *except* object signing.
+
+# This is OK for an SSL server.
+# nsCertType			= server
+
+# For an object signing certificate this would be used.
+# nsCertType = objsign
+
+# For normal client use this is typical
+# nsCertType = client, email
+
+# and for everything including object signing:
+# nsCertType = client, email, objsign
+
+# This is typical in keyUsage for a client certificate.
+# keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+# This will be displayed in Netscape's comment listbox.
+nsComment			= "OpenSSL Generated Certificate"
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+
+# This stuff is for subjectAltName and issuerAltname.
+# Import the email address.
+# subjectAltName=email:copy
+# An alternative to produce certificates that aren't
+# deprecated according to PKIX.
+# subjectAltName=email:move
+
+# Copy subject details
+# issuerAltName=issuer:copy
+
+#nsCaRevocationUrl		= http://www.domain.dom/ca-crl.pem
+#nsBaseUrl
+#nsRevocationUrl
+#nsRenewalUrl
+#nsCaPolicyUrl
+#nsSslServerName
+
+# This is required for TSA certificates.
+# extendedKeyUsage = critical,timeStamping
+
+[ crl_ext ]
+
+# CRL extensions.
+# Only issuerAltName and authorityKeyIdentifier make any sense in a CRL.
+
+# issuerAltName=issuer:copy
+authorityKeyIdentifier=keyid:always
+
+[ proxy_cert_ext ]
+# These extensions should be added when creating a proxy certificate
+
+# This goes against PKIX guidelines but some CAs do it and some software
+# requires this to avoid interpreting an end user certificate as a CA.
+
+basicConstraints=CA:FALSE
+
+# Here are some examples of the usage of nsCertType. If it is omitted
+# the certificate can be used for anything *except* object signing.
+
+# This is OK for an SSL server.
+# nsCertType			= server
+
+# For an object signing certificate this would be used.
+# nsCertType = objsign
+
+# For normal client use this is typical
+# nsCertType = client, email
+
+# and for everything including object signing:
+# nsCertType = client, email, objsign
+
+# This is typical in keyUsage for a client certificate.
+# keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+
+# This will be displayed in Netscape's comment listbox.
+nsComment			= "OpenSSL Generated Certificate"
+
+# PKIX recommendations harmless if included in all certificates.
+subjectKeyIdentifier=hash
+authorityKeyIdentifier=keyid,issuer
+
+# This stuff is for subjectAltName and issuerAltname.
+# Import the email address.
+# subjectAltName=email:copy
+# An alternative to produce certificates that aren't
+# deprecated according to PKIX.
+# subjectAltName=email:move
+
+# Copy subject details
+# issuerAltName=issuer:copy
+
+#nsCaRevocationUrl		= http://www.domain.dom/ca-crl.pem
+#nsBaseUrl
+#nsRevocationUrl
+#nsRenewalUrl
+#nsCaPolicyUrl
+#nsSslServerName
+
+# This really needs to be in place for it to be a proxy certificate.
+proxyCertInfo=critical,language:id-ppl-anyLanguage,pathlen:3,policy:foo
+
+####################################################################
+[ tsa ]
+
+default_tsa = tsa_config1	# the default TSA section
+
+[ tsa_config1 ]
+
+# These are used by the TSA reply generation only.
+dir		= ./demoCA		# TSA root directory
+serial		= $dir/tsaserial	# The current serial number (mandatory)
+crypto_device	= builtin		# OpenSSL engine to use for signing
+signer_cert	= $dir/tsacert.pem 	# The TSA signing certificate
+					# (optional)
+certs		= $dir/cacert.pem	# Certificate chain to include in reply
+					# (optional)
+signer_key	= $dir/private/tsakey.pem # The TSA private key (optional)
+signer_digest  = sha256			# Signing digest to use. (Optional)
+default_policy	= tsa_policy1		# Policy if request did not specify it
+					# (optional)
+other_policies	= tsa_policy2, tsa_policy3	# acceptable policies (optional)
+digests     = sha1, sha256, sha384, sha512  # Acceptable message digests (mandatory)
+accuracy	= secs:1, millisecs:500, microsecs:100	# (optional)
+clock_precision_digits  = 0	# number of digits after dot. (optional)
+ordering		= yes	# Is ordering defined for timestamps?
+				# (optional, default: no)
+tsa_name		= yes	# Must the TSA name be included in the reply?
+				# (optional, default: no)
+ess_cert_id_chain	= no	# Must the ESS cert id chain be included?
+				# (optional, default: no)
+ess_cert_id_alg		= sha1	# algorithm to compute certificate
+				# identifier (optional, default: sha1)
